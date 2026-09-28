@@ -1,0 +1,15 @@
+{"type":"session","version":3,"id":"dsh-test","createdAt":1789905600000,"cwd":"/sample","isSeeded":false,"parentSession":"parent-example"}
+{"type":"turn/start","seq":0,"time":1789905601000,"data":{"turn":1}}
+{"type":"step/start","seq":1,"time":1789905602000,"data":{"turn":1,"step":1}}
+{"type":"request/header","seq":2,"time":1789905602001,"data":{"header":{"config":{"provider":"example-provider","model":"example-model","maxTokens":1000},"tools":[]},"reason":"initial"}}
+{"type":"request/context","seq":3,"time":1789905602002,"data":{"provider":"example-provider","model":"example-model","contextWindow":100000}}
+{"type":"user/message","seq":4,"time":1789905602003,"data":{"id":"u-1","role":"user","content":[{"type":"text","text":"Inspect sample."}]},"surfaceOp":"append"}
+{"type":"assistant/message","seq":5,"time":1789905603000,"data":{"turn":1,"step":1,"message":{"id":"a-1","role":"assistant","source":{"provider":"example-provider","model":"example-model"},"content":[{"type":"reasoning","text":"Read a file."},{"type":"tool-call","id":"call-1","name":"read","arguments":"{\"file_path\":\"/sample/a.cs\"}"}]},"usage":{"inputTokens":10,"cacheReadTokens":20,"outputTokens":3,"totalTokens":33,"reasoningTokens":1},"stream":[{"type":"chunk","time":1789905602500,"chunk":{"type":"reasoning-delta","text":"Read a file."}}]},"surfaceOp":"append"}
+{"type":"tool/call","seq":6,"time":1789905603001,"data":{"turn":1,"step":1,"callId":"call-1","name":"read","arguments":"{\"file_path\":\"/sample/a.cs\"}"}}
+{"type":"tool/result","seq":7,"time":1789905604000,"data":{"turn":1,"step":1,"message":{"id":"result-1","role":"user","source":{"kind":"tool","callId":"call-1"},"content":[{"type":"tool-result","toolCallId":"call-1","content":[{"type":"text","text":"class A {}"}],"isError":false}]}},"sourceEventSeqs":[6],"surfaceOp":"append"}
+{"type":"tool/call","seq":8,"time":1789905604500,"data":{"turn":1,"step":1,"callId":"call-2","name":"read","arguments":"{\"file_path\":\"/sample/a.cs\"}"}}
+{"type":"tool/result","seq":9,"time":1789905605000,"data":{"turn":1,"step":1,"message":{"id":"result-2","role":"user","content":[{"type":"tool-result","toolCallId":"call-2","content":[{"type":"text","text":"No file"}],"isError":true}]}},"sourceEventSeqs":[8]}
+{"type":"command/run","seq":10,"time":1789905605500,"data":{"name":"goal","args":"inspect","commandId":"command-1"}}
+{"type":"step/end","seq":11,"time":1789905606000,"data":{"turn":1,"step":1}}
+{"type":"turn/end","seq":12,"time":1789905607000,"data":{"turn":1,"reason":{"kind":"completed"}}}
+{"type":"session/title","seq":13,"time":1789905607001,"data":{"title":"Sample session"}}

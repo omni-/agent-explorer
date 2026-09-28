@@ -1,0 +1,11 @@
+{
+  "info": {"id":"opencode-v2-test","title":"Sample V2","model":{"id":"example-model","providerID":"example-provider"},"location":{"directory":"C:\\sample"},"time":{"created":1789905600000,"updated":1789905605000},"cost":0.01,"tokens":{"input":10,"output":4,"reasoning":2,"cache":{"read":20,"write":0}}},
+  "messages": [
+    {"id":"u1","type":"user","text":"Inspect sample.","time":{"created":1789905600000}},
+    {"id":"a1","type":"assistant","model":{"id":"example-model","providerID":"example-provider"},"time":{"created":1789905601000,"completed":1789905604000},"tokens":{"input":10,"output":4,"reasoning":2,"cache":{"read":20,"write":0}},"cost":0.01,"content":[
+      {"type":"reasoning","text":"Check sample.","time":{"created":1789905601100,"completed":1789905601200},"state":{"example-provider":{"retained":"yes"}}},
+      {"type":"tool","id":"call1","name":"bash","time":{"created":1789905602000,"completed":1789905603000},"state":{"status":"completed","input":{"command":"echo sample"},"content":[{"type":"text","text":"sample"}],"metadata":{"exit":0,"truncated":false}}},
+      {"type":"text","text":"Done."}
+    ]}
+  ]
+}

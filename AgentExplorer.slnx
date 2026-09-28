@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AgentExplorer.Core/AgentExplorer.Core.csproj" />
+    <Project Path="src/AgentExplorer.Cli/AgentExplorer.Cli.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AgentExplorer.Core.Tests/AgentExplorer.Core.Tests.csproj" />
+  </Folder>
+</Solution>

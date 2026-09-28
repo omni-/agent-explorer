@@ -1,0 +1,15 @@
+{
+  "info": {"id":"opencode-v1-test","version":"1.18.31","directory":"C:\\sample","projectID":"project-sample","title":"Sample V1","time":{"created":1789905600000,"updated":1789905605000}},
+  "messages": [
+    {"info":{"id":"u1","sessionID":"opencode-v1-test","role":"user","time":{"created":1789905600000},"model":{"modelID":"example-model","providerID":"example-provider"}},"parts":[{"id":"p1","type":"text","text":"Inspect sample."}]},
+    {"info":{"id":"a1","sessionID":"opencode-v1-test","parentID":"u1","role":"assistant","modelID":"example-model","providerID":"example-provider","time":{"created":1789905601000,"completed":1789905604000},"tokens":{"input":10,"output":4,"reasoning":2,"cache":{"read":20,"write":0}},"cost":0.01},"parts":[
+      {"id":"p2","type":"step-start"},
+      {"id":"p3","type":"reasoning","text":"Check sample.","time":{"start":1789905601100,"end":1789905601200}},
+      {"id":"p4","type":"tool","callID":"call1","tool":"bash","state":{"status":"completed","input":{"command":"echo sample"},"output":"sample","metadata":{"exit":0},"time":{"start":1789905602000,"end":1789905603000}}},
+      {"id":"p5","type":"patch","hash":"sample-hash","files":["C:\\sample\\a.cs"]},
+      {"id":"p6","type":"step-finish","tokens":{"input":10,"output":4,"reasoning":2,"cache":{"read":20,"write":0}},"cost":0.01}
+    ]},
+    {"info":{"id":"a2","role":"assistant","time":{"created":1789905604500},"error":{"name":"APIError","data":{"message":"Request failed"}}},"parts":[{"id":"p7","type":"compaction","auto":true},{"id":"p8","type":"future-part","newData":{"keep":true}}]}
+  ],
+  "futureProperty": {"mustRemain":true}
+}
