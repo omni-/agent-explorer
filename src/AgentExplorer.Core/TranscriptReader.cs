@@ -11,6 +11,9 @@ namespace AgentExplorer.Core;
 /// <summary>Read-only entry point. Instances contain no session state and can be shared between consumers.</summary>
 public sealed class TranscriptReader
 {
+    /// <summary>Increment when normalization changes so persisted events can be rebuilt.</summary>
+    public const int NormalizationVersion = 1;
+
     /// <summary>Identifies content, including DSH ZIP members and Zstandard streams.</summary>
     public async Task<TranscriptFormat> DetectFormatAsync(TranscriptInput input, CancellationToken cancellationToken = default)
     {

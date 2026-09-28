@@ -3,11 +3,15 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+using AgentExplorer.Cli;
 using AgentExplorer.Core;
 using AgentExplorer.Core.Analysis;
 using AgentExplorer.Core.Discovery;
+using AgentExplorer.Core.Indexing;
 using AgentExplorer.Core.Models;
 using AgentExplorer.Core.Querying;
+
+using Microsoft.Data.Sqlite;
 
 var jsonOptions = new JsonSerializerOptions { WriteIndented = true, Converters = { new JsonStringEnumConverter() } };
 using var cancellation = new CancellationTokenSource();
@@ -17,7 +21,12 @@ try
     if (args.Length == 0 || args[0] is "--help" or "help")
     {
         Console.WriteLine("Agent Explorer diagnostic CLI\n  discover [export-directory ...]\n  stats <path> [format] [zip-entry]\n  events <path> [search-text]\n  verify <path> [format] [zip-entry]\n\nFormats: CodexJsonl, ClaudeCodeJsonl, OpenCodeJson, OpenCodeMarkdown, DshJsonl\nNo commands from transcripts are executed. events emits JSONL and includes raw data.");
+        Console.WriteLine("\nLocal index commands:\n  index-scan <database> [export-directory ...]\n  index-inputs <database> [filters]\n  index-events <database> [filters]\n\nShared filters: --source --session --workspace --input --page-size --cursor\nEvent filters: --text --kind (comma-separated) --role --tool --model --provider --file --from --until\nEvent flags: --errors --native --duplicates --no-mirrors\nindex-scan uses default locations only when no export directories are supplied.\nIndex commands write only the chosen database and temporary snapshots; transcripts remain read-only.");
         return 0;
+    }
+    if (args[0].StartsWith("index-", StringComparison.Ordinal))
+    {
+        return await IndexCommands.RunAsync(args, jsonOptions, cancellation.Token);
     }
     if (args[0] == "discover")
     {
@@ -79,7 +88,8 @@ try
     return args[0] == "verify" && warnings > 0 ? 2 : 0;
 }
 catch (OperationCanceledException) { return 130; }
-catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidDataException)
+catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidDataException or
+    SqliteException or StaleIndexCursorException or FormatException or OverflowException)
 {
     Console.Error.WriteLine(ex.Message);
     return 1;

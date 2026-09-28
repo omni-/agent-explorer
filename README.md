@@ -1,8 +1,8 @@
 # Agent Explorer Core
 
-A read-only, local C# library for coding-agent transcripts. It discovers sessions, reads native records, produces normalized events, links tool calls and results, searches content, and calculates mechanical session facts. There is no TUI, web UI, model judge, telemetry, agent execution, or network access in the Core.
+A local C# library for coding-agent transcripts. It discovers sessions, reads native records, produces normalized events, links tool calls and results, searches content, and calculates mechanical session facts. An optional SQLite index supports incremental rescanning, cross-session queries, and pagination. Transcript sources remain read-only. There is no TUI, web UI, model judge, telemetry, agent execution, or network access in the Core.
 
-The solution targets **.NET 10**. Its only runtime package is the managed `ZstdSharp.Port` decoder for DSH's compressed logs. Build/test packages are restored through NuGet; running the library requires no network, Python, Node, agent installation, or account.
+The solution targets **.NET 10**. Runtime packages are `ZstdSharp.Port` for DSH's compressed logs and `Microsoft.Data.Sqlite`, including its bundled SQLite native library, for the optional index. Packages are restored through NuGet; running the library requires no network, Python, Node, agent installation, or account.
 
 ## Build and verify
 
@@ -69,4 +69,18 @@ dotnet run --project src/AgentExplorer.Cli -- stats C:\transcripts\session.zip D
 
 Read [the encountered formats and their limitations](docs/transcript-formats.md) and [the verification account](docs/task-notes/2026-09-28-core-verification.md) before treating counts from different runtimes as directly comparable.
 
-The next useful backend task is a revision-aware local index for incremental rescans, cross-session queries, and pagination, built on these native-record and event contracts.
+## Local index
+
+```powershell
+# Explicit export directories define the catalog; omit them to use default agent locations.
+dotnet run --project src/AgentExplorer.Cli -- index-scan .local/transcripts.db C:\transcript-exports
+dotnet run --project src/AgentExplorer.Cli -- index-inputs .local/transcripts.db --page-size 20
+dotnet run --project src/AgentExplorer.Cli -- index-events .local/transcripts.db --text build --source Codex --page-size 50
+dotnet run --project src/AgentExplorer.Cli -- index-events .local/transcripts.db --session SESSION_ID --kind ToolCall,ToolResult
+```
+
+Repeat `index-scan` to reuse unchanged inputs and replace changed revisions. Each scan hashes source bytes; only changed inputs are normalized again. Appends, rewrites, truncation, format changes, decoding-limit changes, and normalization-version changes rebuild the affected input. Same-session exports and ZIP members stay separate.
+
+Pages return `Items`, `IndexRevision`, and `ContinuationToken`. Supply the token with `--cursor` and the same filters to get the next page. A changed index rejects old tokens; restart the query to see the new revision. Input pages sort by stable input ID; event pages sort by input ID and native sequence. Queries use the persisted data even when source files are offline.
+
+`index-scan` exits with 2 when discovery, input reading, or newly indexed parser diagnostics report issues. Failed inputs keep their previous revision. Discovery issues prevent removal of absent inputs until a successful scan. Query failures, including stale cursors, exit with 1. See the [index API and storage contract](docs/core-api.md#local-index) for library usage and limits.

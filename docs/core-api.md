@@ -8,8 +8,9 @@
 - `TranscriptReader.LoadAsync`: a session with metadata, chronological events, native records, tool relationships, and statistics.
 - `EventQuery`: composable property filters and literal content search, for loaded or streaming events.
 - `SessionStatisticsBuilder`: incremental factual aggregates without retaining conversation bodies.
+- `LocalTranscriptIndex`: persistent input revisions, incremental scans, and paginated input/event queries across sessions.
 
-`TranscriptReader` and `SessionDiscovery` contain no per-session mutable state and can be shared. Create a separate statistics builder for each input. The Core does not own a logger or a database; callers receive diagnostics as data and decide how to display or log them.
+`TranscriptReader` and `SessionDiscovery` contain no per-session mutable state and can be shared. Create a separate statistics builder for each input. Persistence is opt-in through `LocalTranscriptIndex` and a caller-selected database path. The Core does not own a logger; callers receive diagnostics as data and decide how to display or log them.
 
 ## Discovery
 
@@ -125,4 +126,61 @@ Files are opened read-only with sharing for active writers. Plain files and comp
 
 Malformed JSONL records produce diagnostics containing the malformed text and allow later lines to load. Truncated JSON exports keep complete preceding messages and the available malformed tail. Broken outer JSON structure cannot always be resynchronized. A damaged compressed tail reports a diagnostic and keeps records already emitted; bytes the decoder cannot recover remain only in the original source. Record/decompression limits stop reading with a diagnostic instead of silently truncating an event. Unreadable files, unrecognized headers, or ambiguous ZIP inputs fail explicitly. An explicit format helps with headerless partial files.
 
-The implementation deliberately has no persistence/index migration layer. A later local index should store input revisions and normalization version, preserve these native locations, and invalidate changed prefixes rather than merging uncertain histories.
+## Local index
+
+```csharp
+using AgentExplorer.Core.Indexing;
+
+var index = new LocalTranscriptIndex(@"D:\indexes\transcripts.db");
+var scan = await index.RescanAsync(new DiscoveryOptions
+{
+    UseDefaultLocations = false,
+    ExportDirectories = [@"D:\exports"]
+});
+foreach (var issue in scan.Issues)
+{
+    Console.Error.WriteLine($"{issue.Path}: {issue.Message}");
+}
+
+var filter = new EventQuery { Text = "build", IsError = true };
+var inputs = new IndexInputQuery { Source = AgentSource.Codex };
+var page = index.QueryEvents(filter, inputs, pageSize: 50);
+foreach (var hit in page.Items)
+{
+    Console.WriteLine($"{hit.SessionId} / {hit.InputId} / {hit.Revision}: {hit.Event.Text}");
+}
+if (page.ContinuationToken is { } token)
+{
+    var next = index.QueryEvents(filter, inputs, pageSize: 50, continuationToken: token);
+}
+```
+
+### Scanning and revision identity
+
+`RescanAsync` uses the existing discovery rules, indexes preferred **and alternative** inputs, and treats its discovery options as the complete desired catalog. Missing inputs are removed only when discovery has no issues. Changing the discovery scope intentionally changes the catalog. `UpdateAsync(IEnumerable<TranscriptInput>)` supports explicit formats and ZIP members, preserves other indexed inputs by default, and accepts `removeAbsentInputs: true` for an authoritative catalog. Neither API changes source files.
+
+An input ID identifies a full file path and optional archive member. Local paths follow the host's case rules; archive member names remain case-sensitive. ZIP root shorthand resolves to its explicit member before identity is assigned. Source/native session ID is searchable metadata, so copies, alternative formats, anonymous transcripts, and unrelated sources with colliding IDs remain independent. Cross-session queries search every indexed input; they do not deduplicate same-session exports or select the preferred one.
+
+An input revision includes SHA-256 of the source file bytes, detected or supplied format, `TranscriptReader.NormalizationVersion`, and the record/decoded-character limits. ZIP members share the outer archive's content hash but have distinct input IDs. A change anywhere in an archive invalidates its indexed members. File timestamps and lengths alone never establish equality. Maintainers must increment `NormalizationVersion` when parser behavior changes.
+
+Unchanged inputs reuse their stored events, native records, metadata, and statistics. Scans still read source bytes for hashing, and discovery still reads a bounded metadata prefix. Changed inputs are copied to temporary files, checked against the hash, then streamed through the normal reader. Appends rebuild the affected input from its beginning: parser context, duplicate detection, metadata, and incomplete tails can affect later events. There is no tail-only parser checkpoint. Rewrites and truncations replace the previous revision completely. This prevents old events or diagnostics from surviving an edited prefix.
+
+Copying is bounded to the length observed on open. A source that changes during copying reports an issue for retry; a concurrent append beyond that bound appears on the next scan. This is a finite captured byte sequence, not an atomic filesystem snapshot of an externally rewritten file. Temporary copies are removed after each file is handled. The original path, archive member, record index, line number, and JSON pointer remain in each indexed event.
+
+`IndexScanResult` reports updated, unchanged, and removed input counts, the committed index revision, and issues. Input failures keep the last successfully indexed revision and report an issue. Parser diagnostics remain searchable events, just as with `TranscriptReader`; a partial but readable input can be indexed with diagnostics. Newly indexed warning/error diagnostics also appear in scan issues. Cancellation or a database failure rolls back the scan. Readers see one committed catalog, and concurrent writers are serialized by SQLite with a five-second lock timeout.
+
+### Querying and pagination
+
+`QueryInputs` returns `IndexedInput` entries with full indexed metadata, statistics, source byte hash, normalization version, and revision. `IndexInputQuery` filters exact input ID, source, native session ID, and workspace. The same input filters apply to `QueryEvents` alongside all existing `EventQuery` filters. Text and file comparisons use the same ordinal semantics as the streaming reader, including Unicode, literal `%`/`_` characters, and foreign paths. Queries operate entirely on the index and can run after source files are removed or become unavailable.
+
+Input pages order by stable input ID. Event pages order by input ID and source sequence; this provides a deterministic traversal across tied or missing timestamps. This is not a global timestamp sort. Event identity is `(InputId, Revision, Event.Id)`. A record-local ID alone is insufficient across revisions or sessions.
+
+Page sizes range from 1 to 1,000, defaulting to 100. `ContinuationToken` is null when no matching results remain. Tokens bind the query filters, query type, database revision, and last returned position. Page size can change between requests. Changing filters or supplying a malformed token throws `ArgumentException`. Any committed catalog change invalidates earlier tokens with `StaleIndexCursorException`; restart without the token. An unchanged rescan preserves tokens, including across process restarts. Previous revisions are replaced, not kept as a queryable history.
+
+Queries use a SQLite read transaction and keyset pagination. Input, kind, property, and time filters run in SQL; literal text and file-path matching run through `EventQuery.Matches`. A text search may scan many candidates. Page bodies are bounded by page size, but individual records still follow decoding limits. Indexing streams events and does not use `MaxLoadedEvents`; factual aggregates retain identifier-sized state as described above. Native text is stored once per record, shared by its indexed events.
+
+### Storage and versions
+
+The constructor performs no I/O. The first scan creates the selected SQLite database; queries require an existing index. Connections are scoped to each operation. The index stores decoded native text and normalized data in the database; it uses SQLite WAL files beside it and transient source copies in the system temporary directory. No runtime network access or agent installation is needed. Query methods are synchronous because the SQLite provider executes database operations synchronously; scans use asynchronous source reads and support cancellation.
+
+The database has a separate schema version and application ID. Unsupported or unrelated databases are rejected without migration; create a new index path and rescan. An older normalization version requires rescanning the affected inputs before queries can run. Changing decoding limits rebuilds supplied inputs on the next scan. Database recovery and historical revision retention are outside this API.
